@@ -6,16 +6,14 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils/cn";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 disabled:pointer-events-none disabled:opacity-60",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-60",
   {
     variants: {
       variant: {
-        primary: "bg-foreground text-background hover:bg-[#383838] dark:hover:bg-[#ccc]",
-        secondary:
-          "bg-zinc-100 text-zinc-950 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-50 dark:hover:bg-zinc-700",
-        outline:
-          "border border-zinc-300 bg-transparent text-zinc-950 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-900",
-        ghost: "bg-transparent text-zinc-950 hover:bg-zinc-100 dark:text-zinc-50 dark:hover:bg-zinc-900",
+        primary: "bg-blue-600 text-white hover:bg-blue-700",
+        secondary: "bg-blue-50 text-blue-700 hover:bg-blue-100",
+        outline: "border border-zinc-300 bg-white text-zinc-950 hover:bg-zinc-50",
+        ghost: "bg-transparent text-zinc-700 hover:bg-zinc-100",
         destructive: "bg-red-600 text-white hover:bg-red-700",
       },
       size: {
