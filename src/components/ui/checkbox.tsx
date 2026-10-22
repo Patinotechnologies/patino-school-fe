@@ -23,28 +23,25 @@ export const Checkbox = React.forwardRef<React.ElementRef<typeof CheckboxPrimiti
             id={checkboxId}
             aria-invalid={Boolean(error)}
             className={cn(
-              "flex h-5 w-5 shrink-0 items-center justify-center rounded border border-zinc-300 bg-white outline-none transition-colors focus-visible:ring-2 focus-visible:ring-zinc-400 disabled:cursor-not-allowed disabled:opacity-60 data-[state=checked]:border-foreground data-[state=checked]:bg-foreground dark:border-zinc-700 dark:bg-zinc-900",
+              "flex h-5 w-5 shrink-0 items-center justify-center rounded border border-zinc-300 bg-white outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600",
               error && "border-red-500",
               className,
             )}
             {...props}
           >
             <CheckboxPrimitive.Indicator>
-              <Check className="h-3.5 w-3.5 text-background" />
+              <Check className="h-3.5 w-3.5 text-white" />
             </CheckboxPrimitive.Indicator>
           </CheckboxPrimitive.Root>
 
           {label && (
-            <label
-              htmlFor={checkboxId}
-              className="cursor-pointer select-none text-sm text-zinc-900 dark:text-zinc-100"
-            >
+            <label htmlFor={checkboxId} className="cursor-pointer select-none text-sm text-zinc-900">
               {label}
             </label>
           )}
         </div>
 
-        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
     );
   },

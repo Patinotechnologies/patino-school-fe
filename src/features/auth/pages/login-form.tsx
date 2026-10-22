@@ -20,10 +20,10 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-zinc-50 px-4 py-16 dark:bg-black">
+    <div className="flex flex-1 items-center justify-center bg-zinc-50 px-4 py-16">
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">Log in</h1>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <h1 className="text-2xl font-semibold text-zinc-950">Log in</h1>
+        <p className="mt-1 text-sm text-zinc-600">
           Welcome back to Patino Schools.
         </p>
 
@@ -50,9 +50,9 @@ export default function LoginForm() {
           </Button>
         </form>
 
-        <p className="mt-6 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-6 text-sm text-zinc-600">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-medium text-zinc-950 underline dark:text-zinc-50">
+          <Link href="/register" className="font-medium text-zinc-950 underline">
             Register
           </Link>
         </p>

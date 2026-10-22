@@ -28,7 +28,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className={cn("flex flex-col gap-1.5", containerClassName)}>
         {label && (
-          <label htmlFor={inputId} className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          <label htmlFor={inputId} className="text-sm font-medium text-zinc-900">
             {label}
           </label>
         )}
@@ -42,10 +42,10 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             aria-invalid={Boolean(error)}
             aria-describedby={error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined}
             className={cn(
-              "h-11 w-full rounded-lg border bg-white px-3 text-sm text-zinc-950 outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-900 dark:text-zinc-50",
+              "h-11 w-full rounded-lg border bg-white px-3 text-sm text-zinc-950 outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-60",
               error
-                ? "border-red-500 focus:border-red-500"
-                : "border-zinc-300 focus:border-zinc-500 dark:border-zinc-700 dark:focus:border-zinc-500",
+                ? "border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                : "border-zinc-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500",
               hasTrailingIcon && "pr-10",
               className,
             )}
@@ -61,7 +61,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
               type="button"
               tabIndex={-1}
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -70,7 +70,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         </div>
 
         {error && (
-          <p id={`${inputId}-error`} className="text-xs text-red-600 dark:text-red-400">
+          <p id={`${inputId}-error`} className="text-xs text-red-600">
             {error}
           </p>
         )}

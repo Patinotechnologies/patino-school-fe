@@ -7,6 +7,7 @@ export interface AuthenticatedUser {
 export interface AuthenticatedOrganization {
   id: string;
   name: string;
+  onboardedAt: string | null;
 }
 
 export interface AuthResponse {
