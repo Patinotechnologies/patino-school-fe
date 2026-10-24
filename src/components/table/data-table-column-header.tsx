@@ -14,7 +14,7 @@ export function DataTableColumnHeader<TData, TValue>({
   className?: string;
 }) {
   if (!column.getCanSort()) {
-    return <span className={className}>{title}</span>;
+    return <span className={cn("text-xs font-medium uppercase tracking-wide text-zinc-500", className)}>{title}</span>;
   }
 
   const sorted = column.getIsSorted();

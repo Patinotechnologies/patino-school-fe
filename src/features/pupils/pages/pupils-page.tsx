@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
-import type { ColumnDef, Row } from "@tanstack/react-table";
+import { useRouter } from "next/navigation";
+import { Plus, Pencil, Trash2, UserX, UserCheck } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Modal } from "@/components/ui/modal";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip } from "@/components/ui/tooltip";
 import { DataTable, DataTableColumnHeader } from "@/components/table";
 import { ApiError } from "@/lib/api/api-client";
 import { useSchoolStore } from "@/stores/school-store";
@@ -17,6 +20,8 @@ import {
   useDeletePupilMutation,
   useMovePupilsMutation,
   usePupilsQuery,
+  useReactivatePupilMutation,
+  useSuspendPupilMutation,
   useUpdatePupilMutation,
 } from "@/features/pupils/api/pupils-api";
 import type { GuardianRelationship, Pupil } from "@/types/pupil";
@@ -50,33 +55,30 @@ const columns: ColumnDef<Pupil, unknown>[] = [
   },
   {
     accessorKey: "guardianPhone",
-    header: "Guardian phone",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Guardian phone" />,
     enableSorting: false,
+    meta: { label: "Guardian phone" },
   },
   {
     accessorKey: "dateOfBirth",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Date of birth" />,
     meta: { label: "Date of birth" },
   },
+  {
+    accessorKey: "status",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+    enableSorting: false,
+    meta: { label: "Status" },
+    cell: ({ row }) => (
+      <Badge variant={row.original.status === "suspended" ? "amber" : "green"}>
+        {row.original.status === "suspended" ? "Suspended" : "Active"}
+      </Badge>
+    ),
+  },
 ];
 
-function PupilDetails({ row }: { row: Row<Pupil> }) {
-  const pupil = row.original;
-  return (
-    <dl className="grid grid-cols-1 gap-x-8 gap-y-2 text-sm sm:grid-cols-3">
-      <div>
-        <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">Relationship</dt>
-        <dd className="mt-0.5 capitalize text-zinc-700">{pupil.guardianRelationship}</dd>
-      </div>
-      <div className="sm:col-span-2">
-        <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">Address</dt>
-        <dd className="mt-0.5 text-zinc-700">{pupil.address ?? "—"}</dd>
-      </div>
-    </dl>
-  );
-}
-
 export default function PupilsPage() {
+  const router = useRouter();
   const selectedSchoolId = useSchoolStore((state) => state.selectedSchoolId);
   const pupilsQuery = usePupilsQuery(selectedSchoolId ? { schoolId: selectedSchoolId, pageSize: 100 } : null);
   const classesQuery = useClassesQuery(selectedSchoolId);
@@ -85,6 +87,9 @@ export default function PupilsPage() {
 
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   const [editingPupil, setEditingPupil] = useState<Pupil | null>(null);
+  const [deletingPupil, setDeletingPupil] = useState<Pupil | null>(null);
+  const [suspendingPupil, setSuspendingPupil] = useState<Pupil | null>(null);
+  const [reactivatingPupil, setReactivatingPupil] = useState<Pupil | null>(null);
   const [selectedPupils, setSelectedPupils] = useState<Pupil[]>([]);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
 
@@ -134,11 +139,6 @@ export default function PupilsPage() {
     );
   }
 
-  function handleDelete(pupil: Pupil) {
-    if (!window.confirm(`Remove ${pupil.fullName}? This can't be undone.`)) return;
-    deletePupil.mutate(pupil.id);
-  }
-
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -171,35 +171,74 @@ export default function PupilsPage() {
             enableHiding: false,
             cell: ({ row }) => (
               <div className="flex justify-end gap-1">
-                <button
-                  type="button"
-                  onClick={() => setEditingPupil(row.original)}
-                  aria-label={`Edit ${row.original.fullName}`}
-                  className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(row.original)}
-                  aria-label={`Remove ${row.original.fullName}`}
-                  className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-red-600"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <Tooltip content="Edit pupil">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingPupil(row.original);
+                    }}
+                    aria-label={`Edit ${row.original.fullName}`}
+                    className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </Tooltip>
+                {row.original.status === "suspended" ? (
+                  <Tooltip content="Reactivate pupil">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setReactivatingPupil(row.original);
+                      }}
+                      aria-label={`Reactivate ${row.original.fullName}`}
+                      className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-green-600"
+                    >
+                      <UserCheck className="h-4 w-4" />
+                    </button>
+                  </Tooltip>
+                ) : (
+                  <Tooltip content="Suspend pupil">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSuspendingPupil(row.original);
+                      }}
+                      aria-label={`Suspend ${row.original.fullName}`}
+                      className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-amber-600"
+                    >
+                      <UserX className="h-4 w-4" />
+                    </button>
+                  </Tooltip>
+                )}
+                <Tooltip content="Delete pupil">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeletingPupil(row.original);
+                    }}
+                    aria-label={`Remove ${row.original.fullName}`}
+                    className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </Tooltip>
               </div>
             ),
           },
         ]}
         data={pupils}
         isLoading={pupilsQuery.isPending}
-        renderSubRow={(row) => <PupilDetails row={row} />}
         searchPlaceholder="Search pupils…"
         emptyTitle="No pupils yet"
         emptyDescription="Enrolled pupils will show up here."
         enableRowSelection
         getRowId={(pupil) => pupil.id}
         onSelectedRowsChange={setSelectedPupils}
+        onRowClick={(pupil) => router.push(`/pupils/${pupil.id}`)}
       />
 
       <Modal open={isEnrollModalOpen} onClose={() => setIsEnrollModalOpen(false)} title="Enroll a pupil" description="Add a new pupil to this school.">
@@ -233,6 +272,19 @@ export default function PupilsPage() {
       {editingPupil && (
         <EditPupilModal pupil={editingPupil} classOptions={classOptions} classOptionsLoading={classesQuery.isPending} onClose={() => setEditingPupil(null)} />
       )}
+
+      {deletingPupil && (
+        <DeletePupilModal
+          pupil={deletingPupil}
+          isDeleting={deletePupil.isPending}
+          onConfirm={() => deletePupil.mutate(deletingPupil.id, { onSuccess: () => setDeletingPupil(null) })}
+          onClose={() => setDeletingPupil(null)}
+        />
+      )}
+
+      {suspendingPupil && <SuspendPupilModal pupil={suspendingPupil} onClose={() => setSuspendingPupil(null)} />}
+
+      {reactivatingPupil && <ReactivatePupilModal pupil={reactivatingPupil} onClose={() => setReactivatingPupil(null)} />}
 
       {isMoveModalOpen && (
         <MovePupilsModal
@@ -315,6 +367,92 @@ function EditPupilModal({
         </div>
       </form>
     </Modal>
+  );
+}
+
+function DeletePupilModal({
+  pupil,
+  isDeleting,
+  onConfirm,
+  onClose,
+}: {
+  pupil: Pupil;
+  isDeleting: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Remove pupil"
+      description={`Remove ${pupil.fullName}? This can't be undone from here.`}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" variant="destructive" isLoading={isDeleting} loadingText="Removing…" onClick={onConfirm}>
+            Remove pupil
+          </Button>
+        </>
+      }
+    />
+  );
+}
+
+function SuspendPupilModal({ pupil, onClose }: { pupil: Pupil; onClose: () => void }) {
+  const suspendPupil = useSuspendPupilMutation();
+  const [reason, setReason] = useState("");
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    suspendPupil.mutate({ id: pupil.id, payload: { reason } }, { onSuccess: onClose });
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Suspend pupil" description={`Suspend ${pupil.fullName} and record why.`}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Input label="Reason" required placeholder="e.g. Repeated truancy" value={reason} onChange={(e) => setReason(e.target.value)} />
+
+        <div className="mt-2 flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="destructive" isLoading={suspendPupil.isPending} loadingText="Suspending…">
+            Suspend pupil
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ReactivatePupilModal({ pupil, onClose }: { pupil: Pupil; onClose: () => void }) {
+  const reactivatePupil = useReactivatePupilMutation();
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Reactivate pupil"
+      description={`Reactivate ${pupil.fullName}? Their suspension reason will be cleared.`}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            isLoading={reactivatePupil.isPending}
+            loadingText="Reactivating…"
+            onClick={() => reactivatePupil.mutate(pupil.id, { onSuccess: onClose })}
+          >
+            Reactivate pupil
+          </Button>
+        </>
+      }
+    />
   );
 }
 

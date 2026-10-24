@@ -11,6 +11,7 @@ import type {
   MovePupilsPayload,
   PaginatedPupils,
   Pupil,
+  SuspendPupilPayload,
   UpdatePupilPayload,
 } from "@/types/pupil";
 
@@ -31,6 +32,10 @@ export const pupilsApi = {
     return client.get<PaginatedPupils>(`/pupils${toQueryString(params)}`);
   },
 
+  get(id: string) {
+    return client.get<Pupil>(`/pupils/${id}`);
+  },
+
   create(payload: CreatePupilPayload) {
     return client.post<Pupil>("/pupils", payload);
   },
@@ -46,6 +51,14 @@ export const pupilsApi = {
   move(payload: MovePupilsPayload) {
     return client.post<Pupil[]>("/pupils/move", payload);
   },
+
+  suspend(id: string, payload: SuspendPupilPayload) {
+    return client.post<Pupil>(`/pupils/${id}/suspend`, payload);
+  },
+
+  reactivate(id: string) {
+    return client.post<Pupil>(`/pupils/${id}/reactivate`, {});
+  },
 };
 
 export function usePupilsQuery(params: ListPupilsParams | null) {
@@ -55,6 +68,16 @@ export function usePupilsQuery(params: ListPupilsParams | null) {
     queryKey: [...queryKeys.pupils, params],
     queryFn: () => pupilsApi.list(params!),
     enabled: Boolean(token && params?.schoolId),
+  });
+}
+
+export function usePupilQuery(id: string) {
+  const token = useAuthStore((state) => state.token);
+
+  return useQuery({
+    queryKey: [...queryKeys.pupils, "detail", id],
+    queryFn: () => pupilsApi.get(id),
+    enabled: Boolean(token && id),
   });
 }
 
@@ -94,6 +117,32 @@ export function useDeletePupilMutation() {
       toast.success("Pupil removed");
     },
     onError: (err) => toastError(err, "Could not remove this pupil"),
+  });
+}
+
+export function useSuspendPupilMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: SuspendPupilPayload }) => pupilsApi.suspend(id, payload),
+    onSuccess: (pupil) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.pupils });
+      toast.success(`${pupil.fullName} suspended`);
+    },
+    onError: (err) => toastError(err, "Could not suspend this pupil"),
+  });
+}
+
+export function useReactivatePupilMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => pupilsApi.reactivate(id),
+    onSuccess: (pupil) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.pupils });
+      toast.success(`${pupil.fullName} reactivated`);
+    },
+    onError: (err) => toastError(err, "Could not reactivate this pupil"),
   });
 }
 

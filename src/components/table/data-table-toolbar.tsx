@@ -38,7 +38,7 @@ export function DataTableToolbar<TData>({
             value={globalFilter}
             onChange={(e) => onGlobalFilterChange(e.target.value)}
             placeholder={searchPlaceholder}
-            className="h-9 pl-9"
+            className="h-11 pl-9"
           />
         </div>
         {filters}
