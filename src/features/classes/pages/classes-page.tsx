@@ -1,114 +1,518 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, UserCog, Pencil, Link2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Modal } from "@/components/ui/modal";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ApiError } from "@/lib/api/api-client";
+import { useSchoolStore } from "@/stores/school-store";
+import { useClassesQuery, useCreateClassMutation, useUpdateClassMutation } from "@/features/classes/api/classes-api";
+import { useStaffQuery } from "@/features/staff/api/staff-api";
+import { useCreateSubjectMutation, useSubjectsQuery, useUpdateSubjectMutation } from "@/features/subjects/api/subjects-api";
+import { useAssignClassSubjectMutation } from "@/features/subjects/api/class-subjects-api";
+import type { SchoolClass } from "@/types/class";
+import type { Subject } from "@/types/subject";
 
-// Mock data — no API wired yet, this is a design pass only.
-const LEVEL_OPTIONS = [
-  { value: "nursery", label: "Nursery" },
-  { value: "primary", label: "Primary" },
-  { value: "secondary", label: "Secondary" },
-];
-
-const TEACHER_OPTIONS = [
-  { value: "ifeoma", label: "Ifeoma Chukwu" },
-  { value: "patricia", label: "Patricia Udo" },
-  { value: "mustapha", label: "Mustapha Bello" },
-];
-
-const LEVELS = [
-  {
-    level: "Nursery",
-    classes: [{ name: "Nursery 1", teacher: "Grace Adewale", pupils: 24 }],
-  },
-  {
-    level: "Primary",
-    classes: [
-      { name: "Primary 1", teacher: "Ifeoma Chukwu", pupils: 31 },
-      { name: "Primary 2", teacher: "Patricia Udo", pupils: 28 },
-    ],
-  },
-  {
-    level: "Secondary",
-    classes: [{ name: "JSS 1", teacher: "Mustapha Bello", pupils: 35 }],
-  },
-];
+const NO_TEACHER_VALUE = "none";
 
 export default function ClassesPage() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const selectedSchoolId = useSchoolStore((state) => state.selectedSchoolId);
+  const [activeTab, setActiveTab] = useState("classes");
+  const [isAddClassOpen, setIsAddClassOpen] = useState(false);
+  const [isAddSubjectOpen, setIsAddSubjectOpen] = useState(false);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader title="Classes" description="Grade structure for this school, and who teaches each class." />
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="flex items-center justify-between gap-3">
+          <TabsList>
+            <TabsTrigger value="classes">Classes</TabsTrigger>
+            <TabsTrigger value="subject">Subject</TabsTrigger>
+          </TabsList>
+
+          {activeTab === "classes" ? (
+            <Button onClick={() => setIsAddClassOpen(true)} disabled={!selectedSchoolId}>
+              <Plus className="h-4 w-4" />
+              Add class
+            </Button>
+          ) : (
+            <Button onClick={() => setIsAddSubjectOpen(true)} disabled={!selectedSchoolId}>
+              <Plus className="h-4 w-4" />
+              Add subject
+            </Button>
+          )}
+        </div>
+
+        <TabsContent value="classes" className="pt-6">
+          <ClassesTab isAddModalOpen={isAddClassOpen} onCloseAddModal={() => setIsAddClassOpen(false)} />
+        </TabsContent>
+        <TabsContent value="subject" className="pt-6">
+          <SubjectsTab isAddModalOpen={isAddSubjectOpen} onCloseAddModal={() => setIsAddSubjectOpen(false)} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function ClassesTab({ isAddModalOpen, onCloseAddModal }: { isAddModalOpen: boolean; onCloseAddModal: () => void }) {
+  const router = useRouter();
+  const selectedSchoolId = useSchoolStore((state) => state.selectedSchoolId);
+  const classesQuery = useClassesQuery(selectedSchoolId);
+  const staffQuery = useStaffQuery({ pageSize: 100, active: true });
+  const createClass = useCreateClassMutation();
+
   const [className, setClassName] = useState("");
-  const [level, setLevel] = useState("primary");
-  const [teacher, setTeacher] = useState("ifeoma");
+  const [teacherId, setTeacherId] = useState(NO_TEACHER_VALUE);
+  const [assigningClass, setAssigningClass] = useState<SchoolClass | null>(null);
+
+  const classes = classesQuery.data ?? [];
+  const teacherOptions = [
+    { value: NO_TEACHER_VALUE, label: "No class teacher" },
+    ...(staffQuery.data?.data.map((member) => ({ value: member.id, label: member.fullName })) ?? []),
+  ];
+
+  const classesError =
+    classesQuery.error instanceof ApiError
+      ? classesQuery.error.message
+      : classesQuery.isError
+        ? "Could not load classes"
+        : null;
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    // Design only — no API call yet.
-    setIsModalOpen(false);
-    setClassName("");
+    if (!selectedSchoolId) return;
+    createClass.mutate(
+      {
+        schoolId: selectedSchoolId,
+        name: className,
+        classTeacherId: teacherId === NO_TEACHER_VALUE ? null : teacherId,
+      },
+      {
+        onSuccess: () => {
+          onCloseAddModal();
+          setClassName("");
+          setTeacherId(NO_TEACHER_VALUE);
+        },
+      },
+    );
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Classes"
-        description="Grade structure for this school, and who teaches each class."
-        action={
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="h-4 w-4" />
-            Add class
-          </Button>
-        }
-      />
+      {classesError && <p className="text-sm text-red-600">{classesError}</p>}
 
-      <div className="flex flex-col gap-6">
-        {LEVELS.map((group) => (
-          <section key={group.level} className="rounded-xl border border-zinc-200 bg-white">
-            <div className="border-b border-zinc-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-zinc-950">{group.level}</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-zinc-100 text-xs uppercase tracking-wide text-zinc-500">
-                    <th className="px-5 py-3 font-medium">Class</th>
-                    <th className="px-5 py-3 font-medium">Class teacher</th>
-                    <th className="px-5 py-3 font-medium">Pupils</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.classes.map((c) => (
-                    <tr key={c.name} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50">
-                      <td className="px-5 py-4 font-medium text-zinc-950">{c.name}</td>
-                      <td className="px-5 py-4 text-zinc-700">{c.teacher}</td>
-                      <td className="px-5 py-4 text-zinc-700">{c.pupils}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        ))}
-      </div>
+      <section className="rounded-xl border border-zinc-200 bg-white">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-100 text-xs uppercase tracking-wide text-zinc-500">
+                <th className="px-5 py-3 font-medium">Class</th>
+                <th className="px-5 py-3 font-medium">Class teacher</th>
+                <th className="px-5 py-3 font-medium">Email</th>
+                <th className="px-5 py-3 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {classesQuery.isPending && (
+                <tr>
+                  <td className="px-5 py-4 text-sm text-zinc-500" colSpan={4}>
+                    Loading classes…
+                  </td>
+                </tr>
+              )}
+              {!classesQuery.isPending && classes.length === 0 && !classesError && (
+                <tr>
+                  <td className="px-5 py-4 text-sm text-zinc-500" colSpan={4}>
+                    No classes yet — add your first one above.
+                  </td>
+                </tr>
+              )}
+              {classes.map((cls) => (
+                <tr
+                  key={cls.id}
+                  onClick={() => router.push(`/classes/${cls.id}`)}
+                  className="cursor-pointer border-b border-zinc-50 last:border-0 hover:bg-zinc-50"
+                >
+                  <td className="px-5 py-4 font-medium text-zinc-950">{cls.name}</td>
+                  <td className="px-5 py-4 text-zinc-700">{cls.classTeacher?.fullName ?? "Unassigned"}</td>
+                  <td className="px-5 py-4 text-zinc-700">{cls.classTeacher?.email ?? "—"}</td>
+                  <td className="px-5 py-4 text-right">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAssigningClass(cls);
+                      }}
+                      aria-label={`Assign class teacher for ${cls.name}`}
+                      className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600"
+                    >
+                      <UserCog className="h-4 w-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add a class" description="Create a new class and assign a class teacher.">
+      <Modal open={isAddModalOpen} onClose={onCloseAddModal} title="Add a class" description="Create a new class and assign a class teacher.">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Input label="Class name" required placeholder="e.g. Primary 3" value={className} onChange={(e) => setClassName(e.target.value)} />
-          <Dropdown label="Level" options={LEVEL_OPTIONS} value={level} onChange={setLevel} />
-          <Dropdown label="Class teacher" options={TEACHER_OPTIONS} value={teacher} onChange={setTeacher} />
+          <Dropdown
+            label="Class teacher"
+            options={teacherOptions}
+            value={teacherId}
+            onChange={setTeacherId}
+            isLoading={staffQuery.isPending}
+          />
 
           <div className="mt-2 flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={onCloseAddModal}>
               Cancel
             </Button>
-            <Button type="submit">Create class</Button>
+            <Button type="submit" isLoading={createClass.isPending} loadingText="Creating…">
+              Create class
+            </Button>
           </div>
         </form>
       </Modal>
+
+      {assigningClass && (
+        <AssignClassTeacherModal
+          cls={assigningClass}
+          teacherOptions={teacherOptions}
+          teacherOptionsLoading={staffQuery.isPending}
+          onClose={() => setAssigningClass(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function AssignClassTeacherModal({
+  cls,
+  teacherOptions,
+  teacherOptionsLoading,
+  onClose,
+}: {
+  cls: SchoolClass;
+  teacherOptions: { value: string; label: string }[];
+  teacherOptionsLoading: boolean;
+  onClose: () => void;
+}) {
+  const updateClass = useUpdateClassMutation(cls.id);
+  const [teacherId, setTeacherId] = useState(cls.classTeacher?.id ?? NO_TEACHER_VALUE);
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    updateClass.mutate(
+      { classTeacherId: teacherId === NO_TEACHER_VALUE ? null : teacherId },
+      { onSuccess: onClose },
+    );
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Assign class teacher" description={cls.name}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Dropdown
+          label="Class teacher"
+          options={teacherOptions}
+          value={teacherId}
+          onChange={setTeacherId}
+          isLoading={teacherOptionsLoading}
+        />
+
+        <div className="mt-2 flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" isLoading={updateClass.isPending} loadingText="Saving…">
+            Assign
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function SubjectsTab({ isAddModalOpen, onCloseAddModal }: { isAddModalOpen: boolean; onCloseAddModal: () => void }) {
+  const selectedSchoolId = useSchoolStore((state) => state.selectedSchoolId);
+  const subjectsQuery = useSubjectsQuery(selectedSchoolId);
+  const classesQuery = useClassesQuery(selectedSchoolId);
+  const staffQuery = useStaffQuery({ pageSize: 100, active: true });
+  const createSubject = useCreateSubjectMutation();
+
+  const [name, setName] = useState("");
+  const [testMaxScore, setTestMaxScore] = useState("0");
+  const [assignmentMaxScore, setAssignmentMaxScore] = useState("0");
+  const [examMaxScore, setExamMaxScore] = useState("0");
+
+  const [updatingSubject, setUpdatingSubject] = useState<Subject | null>(null);
+  const [assigningSubject, setAssigningSubject] = useState<Subject | null>(null);
+
+  const subjects = subjectsQuery.data ?? [];
+
+  const subjectsError =
+    subjectsQuery.error instanceof ApiError
+      ? subjectsQuery.error.message
+      : subjectsQuery.isError
+        ? "Could not load subjects"
+        : null;
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!selectedSchoolId) return;
+    createSubject.mutate(
+      {
+        schoolId: selectedSchoolId,
+        name,
+        testMaxScore: Number(testMaxScore) || 0,
+        assignmentMaxScore: Number(assignmentMaxScore) || 0,
+        examMaxScore: Number(examMaxScore) || 0,
+      },
+      {
+        onSuccess: () => {
+          onCloseAddModal();
+          setName("");
+          setTestMaxScore("0");
+          setAssignmentMaxScore("0");
+          setExamMaxScore("0");
+        },
+      },
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {subjectsError && <p className="text-sm text-red-600">{subjectsError}</p>}
+
+      <section className="rounded-xl border border-zinc-200 bg-white">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-100 text-xs uppercase tracking-wide text-zinc-500">
+                <th className="px-5 py-3 font-medium">Subject</th>
+                <th className="px-5 py-3 font-medium">Test</th>
+                <th className="px-5 py-3 font-medium">Assignment</th>
+                <th className="px-5 py-3 font-medium">Exam</th>
+                <th className="px-5 py-3 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {subjectsQuery.isPending && (
+                <tr>
+                  <td className="px-5 py-4 text-sm text-zinc-500" colSpan={5}>
+                    Loading subjects…
+                  </td>
+                </tr>
+              )}
+              {!subjectsQuery.isPending && subjects.length === 0 && !subjectsError && (
+                <tr>
+                  <td className="px-5 py-4 text-sm text-zinc-500" colSpan={5}>
+                    No subjects yet — add your first one above.
+                  </td>
+                </tr>
+              )}
+              {subjects.map((subject) => (
+                <tr key={subject.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50">
+                  <td className="px-5 py-4 font-medium text-zinc-950">{subject.name}</td>
+                  <td className="px-5 py-4 text-zinc-700">{subject.testMaxScore}</td>
+                  <td className="px-5 py-4 text-zinc-700">{subject.assignmentMaxScore}</td>
+                  <td className="px-5 py-4 text-zinc-700">{subject.examMaxScore}</td>
+                  <td className="px-5 py-4">
+                    <div className="flex justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setUpdatingSubject(subject)}
+                        aria-label={`Update ${subject.name}`}
+                        className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAssigningSubject(subject)}
+                        aria-label={`Assign ${subject.name} to a class`}
+                        className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600"
+                      >
+                        <Link2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <Modal
+        open={isAddModalOpen}
+        onClose={onCloseAddModal}
+        title="Add a subject"
+        description="Set its name and score weighting (test + assignment + exam)."
+      >
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <Input label="Subject name" required placeholder="e.g. Mathematics" value={name} onChange={(e) => setName(e.target.value)} />
+          <div className="grid grid-cols-3 gap-3">
+            <Input label="Test" type="number" min={0} value={testMaxScore} onChange={(e) => setTestMaxScore(e.target.value)} />
+            <Input
+              label="Assignment"
+              type="number"
+              min={0}
+              value={assignmentMaxScore}
+              onChange={(e) => setAssignmentMaxScore(e.target.value)}
+            />
+            <Input label="Exam" type="number" min={0} value={examMaxScore} onChange={(e) => setExamMaxScore(e.target.value)} />
+          </div>
+
+          <div className="mt-2 flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onCloseAddModal}>
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={createSubject.isPending} loadingText="Adding…">
+              Add subject
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {updatingSubject && <UpdateSubjectModal subject={updatingSubject} onClose={() => setUpdatingSubject(null)} />}
+
+      {assigningSubject && (
+        <AssignSubjectModal
+          subject={assigningSubject}
+          classOptions={(classesQuery.data ?? []).map((cls) => ({ value: cls.id, label: cls.name }))}
+          classOptionsLoading={classesQuery.isPending}
+          teacherOptions={[
+            { value: NO_TEACHER_VALUE, label: "No subject teacher" },
+            ...(staffQuery.data?.data.map((member) => ({ value: member.id, label: member.fullName })) ?? []),
+          ]}
+          teacherOptionsLoading={staffQuery.isPending}
+          onClose={() => setAssigningSubject(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function UpdateSubjectModal({ subject, onClose }: { subject: Subject; onClose: () => void }) {
+  const updateSubject = useUpdateSubjectMutation();
+
+  const [name, setName] = useState(subject.name);
+  const [testMaxScore, setTestMaxScore] = useState(String(subject.testMaxScore));
+  const [assignmentMaxScore, setAssignmentMaxScore] = useState(String(subject.assignmentMaxScore));
+  const [examMaxScore, setExamMaxScore] = useState(String(subject.examMaxScore));
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    updateSubject.mutate(
+      {
+        id: subject.id,
+        payload: {
+          name,
+          testMaxScore: Number(testMaxScore) || 0,
+          assignmentMaxScore: Number(assignmentMaxScore) || 0,
+          examMaxScore: Number(examMaxScore) || 0,
+        },
+      },
+      { onSuccess: onClose },
+    );
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Update subject" description="Rename it or change its score weighting.">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Input label="Subject name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <div className="grid grid-cols-3 gap-3">
+          <Input label="Test" type="number" min={0} value={testMaxScore} onChange={(e) => setTestMaxScore(e.target.value)} />
+          <Input
+            label="Assignment"
+            type="number"
+            min={0}
+            value={assignmentMaxScore}
+            onChange={(e) => setAssignmentMaxScore(e.target.value)}
+          />
+          <Input label="Exam" type="number" min={0} value={examMaxScore} onChange={(e) => setExamMaxScore(e.target.value)} />
+        </div>
+
+        <div className="mt-2 flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" isLoading={updateSubject.isPending} loadingText="Saving…">
+            Save changes
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function AssignSubjectModal({
+  subject,
+  classOptions,
+  classOptionsLoading,
+  teacherOptions,
+  teacherOptionsLoading,
+  onClose,
+}: {
+  subject: Subject;
+  classOptions: { value: string; label: string }[];
+  classOptionsLoading: boolean;
+  teacherOptions: { value: string; label: string }[];
+  teacherOptionsLoading: boolean;
+  onClose: () => void;
+}) {
+  const assignClassSubject = useAssignClassSubjectMutation();
+  const [classId, setClassId] = useState(classOptions[0]?.value ?? "");
+  const [teacherId, setTeacherId] = useState(NO_TEACHER_VALUE);
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!classId) return;
+    assignClassSubject.mutate(
+      { classId, subjectId: subject.id, subjectTeacherId: teacherId === NO_TEACHER_VALUE ? null : teacherId },
+      { onSuccess: onClose },
+    );
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Assign ${subject.name}`} description="Add this subject to a class, with an optional subject teacher.">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Dropdown
+          label="Class"
+          options={classOptions}
+          value={classId}
+          onChange={setClassId}
+          isLoading={classOptionsLoading}
+          placeholder="Select a class…"
+        />
+        <Dropdown
+          label="Subject teacher"
+          options={teacherOptions}
+          value={teacherId}
+          onChange={setTeacherId}
+          isLoading={teacherOptionsLoading}
+        />
+
+        <div className="mt-2 flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" isLoading={assignClassSubject.isPending} loadingText="Assigning…" disabled={!classId}>
+            Assign
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

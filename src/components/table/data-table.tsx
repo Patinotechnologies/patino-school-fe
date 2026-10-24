@@ -5,6 +5,7 @@ import {
   type ColumnDef,
   type ExpandedState,
   type Row,
+  type RowSelectionState,
   type SortingState,
   type VisibilityState,
   flexRender,
@@ -17,6 +18,7 @@ import {
 } from "@tanstack/react-table";
 import { ChevronDown, Inbox, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableToolbar } from "./data-table-toolbar";
 import { DataTablePagination } from "./data-table-pagination";
 import { DataTableMobileCard } from "./data-table-mobile-card";
@@ -37,6 +39,11 @@ export interface DataTableProps<TData> {
   hideToolbar?: boolean;
   /** Extra filter controls (dropdowns, etc.) rendered on the same row as search, right after it. */
   toolbarFilters?: React.ReactNode;
+  /** Adds a checkbox column and reports the selected rows' original data back to the caller — e.g. for a bulk-action bar rendered outside the table. */
+  enableRowSelection?: boolean;
+  onSelectedRowsChange?: (selected: TData[]) => void;
+  /** Keys selection by a stable id (e.g. row.id) instead of row index — important when the data array can reorder/refetch. */
+  getRowId?: (row: TData) => string;
 }
 
 export function DataTable<TData>({
@@ -51,43 +58,77 @@ export function DataTable<TData>({
   emptyIcon: EmptyIcon = Inbox,
   hideToolbar,
   toolbarFilters,
+  enableRowSelection,
+  onSelectedRowsChange,
+  getRowId,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [globalFilter, setGlobalFilter] = React.useState("");
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
 
   const tableColumns = React.useMemo<ColumnDef<TData, unknown>[]>(() => {
-    if (!renderSubRow) return columns;
-    const expandColumn: ColumnDef<TData, unknown> = {
-      id: "expand",
-      header: () => null,
-      size: 32,
-      enableSorting: false,
-      enableHiding: false,
-      cell: ({ row }) =>
-        row.getCanExpand() ? (
-          <button
-            type="button"
-            onClick={row.getToggleExpandedHandler()}
-            aria-label={row.getIsExpanded() ? "Collapse row" : "Expand row"}
-            className="rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
-          >
-            <ChevronDown className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && "rotate-180")} />
-          </button>
-        ) : null,
-    };
-    return [expandColumn, ...columns];
-  }, [columns, renderSubRow]);
+    let cols = columns;
+    if (enableRowSelection) {
+      const selectColumn: ColumnDef<TData, unknown> = {
+        id: "select",
+        header: ({ table }) => (
+          <Checkbox
+            checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(Boolean(value))}
+            aria-label="Select all"
+          />
+        ),
+        size: 32,
+        enableSorting: false,
+        enableHiding: false,
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(Boolean(value))}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Select row"
+          />
+        ),
+      };
+      cols = [selectColumn, ...cols];
+    }
+    if (renderSubRow) {
+      const expandColumn: ColumnDef<TData, unknown> = {
+        id: "expand",
+        header: () => null,
+        size: 32,
+        enableSorting: false,
+        enableHiding: false,
+        cell: ({ row }) =>
+          row.getCanExpand() ? (
+            <button
+              type="button"
+              onClick={row.getToggleExpandedHandler()}
+              aria-label={row.getIsExpanded() ? "Collapse row" : "Expand row"}
+              className="rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+            >
+              <ChevronDown className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && "rotate-180")} />
+            </button>
+          ) : null,
+      };
+      cols = [expandColumn, ...cols];
+    }
+    return cols;
+  }, [columns, renderSubRow, enableRowSelection]);
 
   const table = useReactTable({
     data,
     columns: tableColumns,
-    state: { sorting, columnVisibility, globalFilter, expanded },
+    state: { sorting, columnVisibility, globalFilter, expanded, rowSelection },
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
     onExpandedChange: setExpanded,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection,
+    getRowId,
     getRowCanExpand: () => Boolean(renderSubRow),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -96,6 +137,12 @@ export function DataTable<TData>({
     getExpandedRowModel: getExpandedRowModel(),
     initialState: { pagination: { pageSize } },
   });
+
+  React.useEffect(() => {
+    if (!onSelectedRowsChange) return;
+    onSelectedRowsChange(table.getSelectedRowModel().rows.map((row) => row.original));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when the selection itself changes
+  }, [rowSelection]);
 
   const rows = table.getRowModel().rows;
   const leafColumnCount = table.getVisibleLeafColumns().length;
