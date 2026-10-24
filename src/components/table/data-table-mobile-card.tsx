@@ -8,15 +8,17 @@ import { getColumnLabel } from "./types";
 export function DataTableMobileCard<TData>({
   row,
   renderSubRow,
+  onClick,
 }: {
   row: Row<TData>;
   renderSubRow?: (row: Row<TData>) => React.ReactNode;
+  onClick?: () => void;
 }) {
   // Skip the select/expand helper columns here — they get their own treatment below.
   const cells = row.getVisibleCells().filter((cell) => !["select", "expand"].includes(cell.column.id));
 
   return (
-    <div className="border-b border-zinc-100 p-4 last:border-0">
+    <div onClick={onClick} className={cn("border-b border-zinc-100 p-4 last:border-0", onClick && "cursor-pointer")}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 space-y-2">
           {cells.map((cell) => {

@@ -3,12 +3,14 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, UserCog, Pencil, Link2 } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Modal } from "@/components/ui/modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DataTable, DataTableColumnHeader } from "@/components/table";
 import { ApiError } from "@/lib/api/api-client";
 import { useSchoolStore } from "@/stores/school-store";
 import { useClassesQuery, useCreateClassMutation, useUpdateClassMutation } from "@/features/classes/api/classes-api";
@@ -104,64 +106,60 @@ function ClassesTab({ isAddModalOpen, onCloseAddModal }: { isAddModalOpen: boole
     );
   }
 
+  const columns: ColumnDef<SchoolClass, unknown>[] = [
+    {
+      accessorKey: "name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Class" />,
+      cell: ({ row }) => <span className="font-medium text-zinc-950">{row.original.name}</span>,
+      meta: { label: "Class" },
+    },
+    {
+      id: "classTeacher",
+      accessorFn: (row) => row.classTeacher?.fullName ?? "Unassigned",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Class teacher" />,
+      meta: { label: "Class teacher" },
+    },
+    {
+      id: "email",
+      accessorFn: (row) => row.classTeacher?.email ?? "—",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Email" />,
+      meta: { label: "Email" },
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setAssigningClass(row.original);
+            }}
+            aria-label={`Assign class teacher for ${row.original.name}`}
+            className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600"
+          >
+            <UserCog className="h-4 w-4" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-6">
       {classesError && <p className="text-sm text-red-600">{classesError}</p>}
 
-      <section className="rounded-xl border border-zinc-200 bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-zinc-100 text-xs uppercase tracking-wide text-zinc-500">
-                <th className="px-5 py-3 font-medium">Class</th>
-                <th className="px-5 py-3 font-medium">Class teacher</th>
-                <th className="px-5 py-3 font-medium">Email</th>
-                <th className="px-5 py-3 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {classesQuery.isPending && (
-                <tr>
-                  <td className="px-5 py-4 text-sm text-zinc-500" colSpan={4}>
-                    Loading classes…
-                  </td>
-                </tr>
-              )}
-              {!classesQuery.isPending && classes.length === 0 && !classesError && (
-                <tr>
-                  <td className="px-5 py-4 text-sm text-zinc-500" colSpan={4}>
-                    No classes yet — add your first one above.
-                  </td>
-                </tr>
-              )}
-              {classes.map((cls) => (
-                <tr
-                  key={cls.id}
-                  onClick={() => router.push(`/classes/${cls.id}`)}
-                  className="cursor-pointer border-b border-zinc-50 last:border-0 hover:bg-zinc-50"
-                >
-                  <td className="px-5 py-4 font-medium text-zinc-950">{cls.name}</td>
-                  <td className="px-5 py-4 text-zinc-700">{cls.classTeacher?.fullName ?? "Unassigned"}</td>
-                  <td className="px-5 py-4 text-zinc-700">{cls.classTeacher?.email ?? "—"}</td>
-                  <td className="px-5 py-4 text-right">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setAssigningClass(cls);
-                      }}
-                      aria-label={`Assign class teacher for ${cls.name}`}
-                      className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600"
-                    >
-                      <UserCog className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <DataTable
+        columns={columns}
+        data={classes}
+        isLoading={classesQuery.isPending}
+        searchPlaceholder="Search classes…"
+        emptyTitle="No classes yet"
+        emptyDescription="Add your first one above."
+        onRowClick={(cls) => router.push(`/classes/${cls.id}`)}
+      />
 
       <Modal open={isAddModalOpen} onClose={onCloseAddModal} title="Add a class" description="Create a new class and assign a class teacher.">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -290,69 +288,67 @@ function SubjectsTab({ isAddModalOpen, onCloseAddModal }: { isAddModalOpen: bool
     );
   }
 
+  const columns: ColumnDef<Subject, unknown>[] = [
+    {
+      accessorKey: "name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Subject" />,
+      cell: ({ row }) => <span className="font-medium text-zinc-950">{row.original.name}</span>,
+      meta: { label: "Subject" },
+    },
+    {
+      accessorKey: "testMaxScore",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Test" />,
+      meta: { label: "Test" },
+    },
+    {
+      accessorKey: "assignmentMaxScore",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Assignment" />,
+      meta: { label: "Assignment" },
+    },
+    {
+      accessorKey: "examMaxScore",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Exam" />,
+      meta: { label: "Exam" },
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="flex justify-end gap-1">
+          <button
+            type="button"
+            onClick={() => setUpdatingSubject(row.original)}
+            aria-label={`Update ${row.original.name}`}
+            className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setAssigningSubject(row.original)}
+            aria-label={`Assign ${row.original.name} to a class`}
+            className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600"
+          >
+            <Link2 className="h-4 w-4" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-6">
       {subjectsError && <p className="text-sm text-red-600">{subjectsError}</p>}
 
-      <section className="rounded-xl border border-zinc-200 bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-zinc-100 text-xs uppercase tracking-wide text-zinc-500">
-                <th className="px-5 py-3 font-medium">Subject</th>
-                <th className="px-5 py-3 font-medium">Test</th>
-                <th className="px-5 py-3 font-medium">Assignment</th>
-                <th className="px-5 py-3 font-medium">Exam</th>
-                <th className="px-5 py-3 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {subjectsQuery.isPending && (
-                <tr>
-                  <td className="px-5 py-4 text-sm text-zinc-500" colSpan={5}>
-                    Loading subjects…
-                  </td>
-                </tr>
-              )}
-              {!subjectsQuery.isPending && subjects.length === 0 && !subjectsError && (
-                <tr>
-                  <td className="px-5 py-4 text-sm text-zinc-500" colSpan={5}>
-                    No subjects yet — add your first one above.
-                  </td>
-                </tr>
-              )}
-              {subjects.map((subject) => (
-                <tr key={subject.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50">
-                  <td className="px-5 py-4 font-medium text-zinc-950">{subject.name}</td>
-                  <td className="px-5 py-4 text-zinc-700">{subject.testMaxScore}</td>
-                  <td className="px-5 py-4 text-zinc-700">{subject.assignmentMaxScore}</td>
-                  <td className="px-5 py-4 text-zinc-700">{subject.examMaxScore}</td>
-                  <td className="px-5 py-4">
-                    <div className="flex justify-end gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setUpdatingSubject(subject)}
-                        aria-label={`Update ${subject.name}`}
-                        className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAssigningSubject(subject)}
-                        aria-label={`Assign ${subject.name} to a class`}
-                        className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600"
-                      >
-                        <Link2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <DataTable
+        columns={columns}
+        data={subjects}
+        isLoading={subjectsQuery.isPending}
+        searchPlaceholder="Search subjects…"
+        emptyTitle="No subjects yet"
+        emptyDescription="Add your first one above."
+      />
 
       <Modal
         open={isAddModalOpen}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { ClipboardList } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Dropdown } from "@/components/ui/dropdown";
@@ -28,6 +30,7 @@ function todayISODate(): string {
 }
 
 export default function AttendancePage() {
+  const router = useRouter();
   const selectedSchoolId = useSchoolStore((state) => state.selectedSchoolId);
   const classesQuery = useClassesQuery(selectedSchoolId);
 
@@ -38,25 +41,55 @@ export default function AttendancePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Attendance" description="Mark attendance for a class, a subject period, or an activity." />
+      <PageHeader
+        title="Attendance"
+        description="Mark attendance for a class, a subject period, or an activity."
+        action={
+          <Button variant="outline" onClick={() => router.push("/attendance/log")}>
+            <ClipboardList className="h-4 w-4" />
+            View attendance log
+          </Button>
+        }
+      />
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-5">
-        <Dropdown
-          label="Class"
-          options={classOptions}
-          value={classId}
-          onChange={setSelectedClassId}
-          isLoading={classesQuery.isPending}
-          placeholder="Select a class…"
+      {classId ? (
+        <ClassAttendanceForm
+          key={classId}
+          schoolId={selectedSchoolId!}
+          classId={classId}
+          classOptions={classOptions}
+          classesLoading={classesQuery.isPending}
+          onClassChange={setSelectedClassId}
         />
-      </section>
-
-      {classId && <ClassAttendanceForm key={classId} schoolId={selectedSchoolId!} classId={classId} />}
+      ) : (
+        <section className="rounded-xl border border-zinc-200 bg-white p-5">
+          <Dropdown
+            label="Class"
+            options={classOptions}
+            value={classId}
+            onChange={setSelectedClassId}
+            isLoading={classesQuery.isPending}
+            placeholder="Select a class…"
+          />
+        </section>
+      )}
     </div>
   );
 }
 
-function ClassAttendanceForm({ schoolId, classId }: { schoolId: string; classId: string }) {
+function ClassAttendanceForm({
+  schoolId,
+  classId,
+  classOptions,
+  classesLoading,
+  onClassChange,
+}: {
+  schoolId: string;
+  classId: string;
+  classOptions: { value: string; label: string }[];
+  classesLoading: boolean;
+  onClassChange: (classId: string) => void;
+}) {
   const pupilsQuery = usePupilsQuery({ schoolId, classId, pageSize: 100 });
   const classSubjectsQuery = useClassSubjectsQuery(classId);
   const sessionsQuery = useAttendanceSessionsQuery({ classId });
@@ -105,8 +138,15 @@ function ClassAttendanceForm({ schoolId, classId }: { schoolId: string; classId:
   return (
     <>
       <section className="rounded-xl border border-zinc-200 bg-white p-5">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Input label="Date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Dropdown
+            label="Class"
+            options={classOptions}
+            value={classId}
+            onChange={onClassChange}
+            isLoading={classesLoading}
+            placeholder="Select a class…"
+          />
           <Dropdown
             label="For"
             options={[
@@ -117,6 +157,7 @@ function ClassAttendanceForm({ schoolId, classId }: { schoolId: string; classId:
             value={context}
             onChange={(value) => setContext(value as "class" | "subject" | "activity")}
           />
+          <Input label="Date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
           {context === "subject" && (
             <Dropdown
               label="Subject"

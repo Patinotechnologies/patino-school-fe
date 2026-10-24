@@ -44,6 +44,8 @@ export interface DataTableProps<TData> {
   onSelectedRowsChange?: (selected: TData[]) => void;
   /** Keys selection by a stable id (e.g. row.id) instead of row index — important when the data array can reorder/refetch. */
   getRowId?: (row: TData) => string;
+  /** Makes rows clickable (e.g. navigate to a detail page) — rendered with a pointer cursor and hover state. */
+  onRowClick?: (row: TData) => void;
 }
 
 export function DataTable<TData>({
@@ -61,6 +63,7 @@ export function DataTable<TData>({
   enableRowSelection,
   onSelectedRowsChange,
   getRowId,
+  onRowClick,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
@@ -105,7 +108,10 @@ export function DataTable<TData>({
           row.getCanExpand() ? (
             <button
               type="button"
-              onClick={row.getToggleExpandedHandler()}
+              onClick={(e) => {
+                e.stopPropagation();
+                row.getToggleExpandedHandler()();
+              }}
               aria-label={row.getIsExpanded() ? "Collapse row" : "Expand row"}
               className="rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
             >
@@ -196,7 +202,13 @@ export function DataTable<TData>({
             {!isLoading &&
               rows.map((row) => (
                 <React.Fragment key={row.id}>
-                  <tr className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50">
+                  <tr
+                    onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                    className={cn(
+                      "border-b border-zinc-50 last:border-0 hover:bg-zinc-50",
+                      onRowClick && "cursor-pointer",
+                    )}
+                  >
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id} className="px-5 py-4 text-zinc-700">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -232,7 +244,15 @@ export function DataTable<TData>({
           </div>
         )}
 
-        {!isLoading && rows.map((row) => <DataTableMobileCard key={row.id} row={row} renderSubRow={renderSubRow} />)}
+        {!isLoading &&
+          rows.map((row) => (
+            <DataTableMobileCard
+              key={row.id}
+              row={row}
+              renderSubRow={renderSubRow}
+              onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+            />
+          ))}
       </div>
 
       <DataTablePagination table={table} />

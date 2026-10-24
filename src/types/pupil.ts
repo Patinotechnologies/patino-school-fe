@@ -1,4 +1,5 @@
 export type GuardianRelationship = "mother" | "father" | "guardian";
+export type PupilStatus = "active" | "suspended";
 
 export interface PupilClassSummary {
   id: string;
@@ -15,6 +16,8 @@ export interface Pupil {
   guardianPhone: string;
   guardianRelationship: GuardianRelationship;
   address: string | null;
+  status: PupilStatus;
+  suspensionReason: string | null;
 }
 
 export interface CreatePupilPayload {
@@ -41,6 +44,10 @@ export interface UpdatePupilPayload {
 export interface MovePupilsPayload {
   pupilIds: string[];
   classId: string | null;
+}
+
+export interface SuspendPupilPayload {
+  reason: string;
 }
 
 export interface ListPupilsParams {

@@ -63,8 +63,9 @@ const columns: ColumnDef<Staff, unknown>[] = [
   },
   {
     accessorKey: "active",
-    header: "Status",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
     enableSorting: false,
+    meta: { label: "Status" },
     cell: ({ row }) => (
       <Badge variant={row.original.active ? "green" : "zinc"}>{row.original.active ? "Active" : "Deactivated"}</Badge>
     ),
