@@ -1,4 +1,6 @@
 export type StaffRole = "school_admin" | "bursar" | "class_teacher" | "subject_teacher";
+/** "pending" until they accept their invite and set a password; "inactive" if an admin has deactivated them. */
+export type StaffStatus = "pending" | "active" | "inactive";
 
 export interface Staff {
   id: string;
@@ -7,6 +9,7 @@ export interface Staff {
   phone: string | null;
   role: StaffRole;
   active: boolean;
+  status: StaffStatus;
 }
 
 export interface CreateStaffPayload {

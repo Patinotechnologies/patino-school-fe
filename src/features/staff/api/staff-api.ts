@@ -32,6 +32,10 @@ export const staffApi = {
   create(payload: CreateStaffPayload) {
     return client.post<Staff>("/staff", payload);
   },
+
+  remove(id: string) {
+    return client.delete<void>(`/staff/${id}`);
+  },
 };
 
 export function useStaffQuery(params: ListStaffParams = {}) {
@@ -64,5 +68,18 @@ export function useCreateStaffMutation() {
       toast.success(`${staff.fullName} added`);
     },
     onError: (err) => toastError(err, "Could not add staff member"),
+  });
+}
+
+export function useDeleteStaffMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => staffApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.staff });
+      toast.success("Staff member removed");
+    },
+    onError: (err) => toastError(err, "Could not remove this staff member"),
   });
 }

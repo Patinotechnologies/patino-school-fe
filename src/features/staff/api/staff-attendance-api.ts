@@ -5,7 +5,12 @@ import { toastError } from "@/lib/utils/toast-error";
 import { apiConfig } from "@/config/api";
 import { queryKeys } from "@/constants/query-keys";
 import { useAuthStore } from "@/stores/auth-store";
-import type { StaffAttendanceEntry, StaffAttendanceSettings, UpdateStaffAttendanceSettingsPayload } from "@/types/staff-attendance";
+import type {
+  StaffAttendanceEntry,
+  StaffAttendanceHistoryEntry,
+  StaffAttendanceSettings,
+  UpdateStaffAttendanceSettingsPayload,
+} from "@/types/staff-attendance";
 
 const client = createApiClient(apiConfig.baseUrl);
 
@@ -20,6 +25,10 @@ export const staffAttendanceApi = {
 
   list(date?: string) {
     return client.get<StaffAttendanceEntry[]>(`/staff-attendance${date ? `?date=${date}` : ""}`);
+  },
+
+  history(staffId: string) {
+    return client.get<StaffAttendanceHistoryEntry[]>(`/staff-attendance/staff/${staffId}`);
   },
 };
 
@@ -54,5 +63,15 @@ export function useStaffAttendanceQuery(date?: string) {
     queryKey: [...queryKeys.staffAttendance, date ?? "today"],
     queryFn: () => staffAttendanceApi.list(date),
     enabled: Boolean(token),
+  });
+}
+
+export function useStaffAttendanceHistoryQuery(staffId: string) {
+  const token = useAuthStore((state) => state.token);
+
+  return useQuery({
+    queryKey: [...queryKeys.staffAttendance, "history", staffId],
+    queryFn: () => staffAttendanceApi.history(staffId),
+    enabled: Boolean(token && staffId),
   });
 }

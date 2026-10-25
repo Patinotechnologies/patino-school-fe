@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, BookOpen, Users } from "lucide-react";
+import { ArrowLeft, BookOpen, CalendarX2, Users } from "lucide-react";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { ApiError } from "@/lib/api/api-client";
 import { useSchoolStore } from "@/stores/school-store";
 import { useStaffMemberQuery } from "@/features/staff/api/staff-api";
+import { useStaffAttendanceHistoryQuery } from "@/features/staff/api/staff-attendance-api";
 import { useClassesQuery } from "@/features/classes/api/classes-api";
 import { useClassSubjectsByTeacherQuery } from "@/features/subjects/api/class-subjects-api";
-import type { StaffRole } from "@/types/staff";
+import type { StaffRole, StaffStatus } from "@/types/staff";
+import type { StaffAttendanceStatus } from "@/types/staff-attendance";
 
 const ROLE_LABELS: Record<StaffRole, string> = {
   school_admin: "School Admin",
@@ -22,6 +24,18 @@ const ROLE_BADGE_VARIANT: Record<StaffRole, BadgeProps["variant"]> = {
   bursar: "amber",
   class_teacher: "green",
   subject_teacher: "zinc",
+};
+
+const STATUS_LABELS: Record<StaffStatus, string> = {
+  pending: "Pending",
+  active: "Active",
+  inactive: "Deactivated",
+};
+
+const STATUS_BADGE_VARIANT: Record<StaffStatus, BadgeProps["variant"]> = {
+  pending: "amber",
+  active: "green",
+  inactive: "zinc",
 };
 
 export function StaffDetailPage({ staffId }: { staffId: string }) {
@@ -52,7 +66,7 @@ export function StaffDetailPage({ staffId }: { staffId: string }) {
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-semibold text-zinc-950">{staffQuery.data.fullName}</h1>
               <Badge variant={ROLE_BADGE_VARIANT[staffQuery.data.role]}>{ROLE_LABELS[staffQuery.data.role]}</Badge>
-              <Badge variant={staffQuery.data.active ? "green" : "zinc"}>{staffQuery.data.active ? "Active" : "Deactivated"}</Badge>
+              <Badge variant={STATUS_BADGE_VARIANT[staffQuery.data.status]}>{STATUS_LABELS[staffQuery.data.status]}</Badge>
             </div>
             <p className="mt-1 text-sm text-zinc-600">{staffQuery.data.email}</p>
           </div>
@@ -60,7 +74,7 @@ export function StaffDetailPage({ staffId }: { staffId: string }) {
           <PersonalDetailsCard staff={staffQuery.data} />
           <ClassesTaughtCard staffId={staffId} />
           <SubjectsTaughtCard staffId={staffId} />
-          <AttendanceCard staffName={staffQuery.data.fullName} />
+          <AttendanceCard staffId={staffId} />
         </>
       )}
     </div>
@@ -172,49 +186,63 @@ function SubjectsTaughtCard({ staffId }: { staffId: string }) {
   );
 }
 
-// Mock data — the staff attendance module hasn't been built yet, so this renders a placeholder until then.
-function AttendanceCard({ staffName }: { staffName: string }) {
-  const mockSessions = [
-    { date: "2026-10-24", status: "Present" as const },
-    { date: "2026-10-23", status: "Present" as const },
-    { date: "2026-10-22", status: "Late" as const },
-  ];
+const ATTENDANCE_STATUS_LABELS: Record<StaffAttendanceStatus, string> = {
+  present: "Present",
+  late: "Late",
+  absent: "Absent",
+};
 
-  const STATUS_VARIANT: Record<string, BadgeProps["variant"]> = {
-    Present: "green",
-    Absent: "red",
-    Late: "amber",
-  };
+const ATTENDANCE_STATUS_VARIANT: Record<StaffAttendanceStatus, BadgeProps["variant"]> = {
+  present: "green",
+  late: "amber",
+  absent: "red",
+};
+
+function formatCheckInTime(checkInAt: string): string {
+  return new Date(checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function AttendanceCard({ staffId }: { staffId: string }) {
+  const historyQuery = useStaffAttendanceHistoryQuery(staffId);
+  const history = historyQuery.data ?? [];
 
   return (
     <section className="rounded-xl border border-zinc-200 bg-white">
-      <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-5 py-4">
-        <div>
-          <h2 className="text-sm font-semibold text-zinc-950">Attendance</h2>
-          <p className="mt-0.5 text-xs text-zinc-500">{staffName}&apos;s recent attendance.</p>
-        </div>
-        <Badge variant="amber">Sample data — staff attendance coming soon</Badge>
+      <div className="border-b border-zinc-100 px-5 py-4">
+        <h2 className="text-sm font-semibold text-zinc-950">Attendance</h2>
+        <p className="mt-0.5 text-xs text-zinc-500">Most recent check-ins.</p>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-zinc-100 text-xs uppercase tracking-wide text-zinc-500">
-              <th className="px-5 py-3 font-medium">Date</th>
-              <th className="px-5 py-3 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {mockSessions.map((session) => (
-              <tr key={session.date} className="border-b border-zinc-50 last:border-0">
-                <td className="px-5 py-4 font-medium text-zinc-950">{session.date}</td>
-                <td className="px-5 py-4">
-                  <Badge variant={STATUS_VARIANT[session.status]}>{session.status}</Badge>
-                </td>
+
+      {historyQuery.isPending && <p className="px-5 py-4 text-sm text-zinc-500">Loading attendance…</p>}
+
+      {!historyQuery.isPending && history.length === 0 && (
+        <EmptySection icon={CalendarX2} title="No check-ins yet" description="This staff member hasn't checked in yet." bare />
+      )}
+
+      {!historyQuery.isPending && history.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-100 text-xs uppercase tracking-wide text-zinc-500">
+                <th className="px-5 py-3 font-medium">Date</th>
+                <th className="px-5 py-3 font-medium">Check-in</th>
+                <th className="px-5 py-3 font-medium">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {history.map((entry) => (
+                <tr key={entry.date} className="border-b border-zinc-50 last:border-0">
+                  <td className="px-5 py-4 font-medium text-zinc-950">{entry.date}</td>
+                  <td className="px-5 py-4 text-zinc-700">{formatCheckInTime(entry.checkInAt)}</td>
+                  <td className="px-5 py-4">
+                    <Badge variant={ATTENDANCE_STATUS_VARIANT[entry.status]}>{ATTENDANCE_STATUS_LABELS[entry.status]}</Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
