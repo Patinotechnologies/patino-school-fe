@@ -1,15 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Settings } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
+import { Modal } from "@/components/ui/modal";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable, DataTableColumnHeader } from "@/components/table";
+import {
+  useStaffAttendanceQuery,
+  useStaffAttendanceSettingsQuery,
+  useUpdateStaffAttendanceSettingsMutation,
+} from "@/features/staff/api/staff-attendance-api";
 import type { AttendanceStatus } from "@/types/attendance";
+import type { StaffAttendanceEntry, StaffAttendanceSettings } from "@/types/staff-attendance";
+import type { StaffRole } from "@/types/staff";
 
 const STATUS_BADGE_VARIANT: Record<AttendanceStatus, BadgeProps["variant"]> = {
   present: "green",
@@ -97,43 +107,44 @@ const studentColumns: ColumnDef<StudentAttendanceLogEntry, unknown>[] = [
   },
 ];
 
-interface StaffAttendanceLogEntry {
-  id: string;
-  staffName: string;
-  role: string;
-  date: string;
-  status: AttendanceStatus;
+const ROLE_LABELS: Record<StaffRole, string> = {
+  school_admin: "School Admin",
+  bursar: "Bursar",
+  class_teacher: "Class Teacher",
+  subject_teacher: "Subject Teacher",
+};
+
+function todayISODate(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
-// Mock data — staff attendance has no backend yet, this tab is UI-only.
-const MOCK_STAFF_LOG: StaffAttendanceLogEntry[] = [
-  { id: "1", staffName: "Grace Adeyemi", role: "Class Teacher", date: "2026-10-24", status: "present" },
-  { id: "2", staffName: "Samuel Okoro", role: "Subject Teacher", date: "2026-10-24", status: "late" },
-  { id: "3", staffName: "Ruth Bello", role: "Bursar", date: "2026-10-23", status: "present" },
-  { id: "4", staffName: "David Eze", role: "Subject Teacher", date: "2026-10-23", status: "absent" },
-  { id: "5", staffName: "Patience Nnamdi", role: "Class Teacher", date: "2026-10-22", status: "present" },
-];
+function formatCheckInTime(checkInAt: string | null): string {
+  if (!checkInAt) return "—";
+  return new Date(checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
 
-const staffColumns: ColumnDef<StaffAttendanceLogEntry, unknown>[] = [
+const staffColumns: ColumnDef<StaffAttendanceEntry, unknown>[] = [
   {
-    accessorKey: "staffName",
+    accessorKey: "fullName",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Staff" />,
-    cell: ({ row }) => <span className="font-medium text-zinc-950">{row.original.staffName}</span>,
+    cell: ({ row }) => <span className="font-medium text-zinc-950">{row.original.fullName}</span>,
     meta: { label: "Staff" },
   },
   {
     accessorKey: "role",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Role" />,
+    cell: ({ row }) => ROLE_LABELS[row.original.role],
     meta: { label: "Role" },
   },
   {
-    accessorKey: "date",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
-    meta: { label: "Date" },
+    accessorKey: "checkInAt",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Check-in" />,
+    cell: ({ row }) => formatCheckInTime(row.original.checkInAt),
+    meta: { label: "Check-in" },
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
     enableSorting: false,
     cell: ({ row }) => <Badge variant={STATUS_BADGE_VARIANT[row.original.status]}>{STATUS_LABEL[row.original.status]}</Badge>,
   },
@@ -210,25 +221,101 @@ function StudentLogTable() {
 }
 
 function StaffLogTable() {
+  const [date, setDate] = useState(todayISODate());
   const [statusFilter, setStatusFilter] = useState("all");
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+
+  const attendanceQuery = useStaffAttendanceQuery(date);
 
   const data = useMemo(
-    () => MOCK_STAFF_LOG.filter((entry) => statusFilter === "all" || entry.status === statusFilter),
-    [statusFilter],
+    () => (attendanceQuery.data ?? []).filter((entry) => statusFilter === "all" || entry.status === statusFilter),
+    [attendanceQuery.data, statusFilter],
   );
 
   return (
-    <DataTable
-      columns={staffColumns}
-      data={data}
-      searchPlaceholder="Search by staff name…"
-      emptyTitle="No attendance records"
-      emptyDescription="No records match these filters."
-      toolbarFilters={
-        <div className="w-40">
-          <Dropdown options={STATUS_FILTER_OPTIONS} value={statusFilter} onChange={setStatusFilter} />
-        </div>
-      }
-    />
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button variant="outline" onClick={() => setIsRulesModalOpen(true)}>
+          <Settings className="h-4 w-4" />
+          Set check-in rules
+        </Button>
+      </div>
+
+      <DataTable
+        columns={staffColumns}
+        data={data}
+        isLoading={attendanceQuery.isPending}
+        searchPlaceholder="Search by staff name…"
+        emptyTitle="No attendance records"
+        emptyDescription="No records match these filters."
+        toolbarFilters={
+          <>
+            <div className="w-44">
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div className="w-40">
+              <Dropdown options={STATUS_FILTER_OPTIONS} value={statusFilter} onChange={setStatusFilter} />
+            </div>
+          </>
+        }
+      />
+
+      {isRulesModalOpen && <CheckInRulesModal onClose={() => setIsRulesModalOpen(false)} />}
+    </div>
+  );
+}
+
+function CheckInRulesModal({ onClose }: { onClose: () => void }) {
+  const settingsQuery = useStaffAttendanceSettingsQuery();
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Set check-in rules"
+      description="Staff who check in after this time plus the grace period are marked late."
+    >
+      {settingsQuery.data ? (
+        <CheckInRulesForm settings={settingsQuery.data} onClose={onClose} />
+      ) : (
+        <p className="text-sm text-zinc-500">Loading…</p>
+      )}
+    </Modal>
+  );
+}
+
+function CheckInRulesForm({ settings, onClose }: { settings: StaffAttendanceSettings; onClose: () => void }) {
+  const updateSettings = useUpdateStaffAttendanceSettingsMutation();
+
+  const [checkInTime, setCheckInTime] = useState(settings.checkInTime);
+  const [gracePeriodMinutes, setGracePeriodMinutes] = useState(String(settings.gracePeriodMinutes));
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    updateSettings.mutate({ checkInTime, gracePeriodMinutes: Number(gracePeriodMinutes) || 0 }, { onSuccess: onClose });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <Input label="Check-in time" type="time" required value={checkInTime} onChange={(e) => setCheckInTime(e.target.value)} />
+      <Input
+        label="Grace period (minutes)"
+        type="number"
+        min={0}
+        max={240}
+        required
+        value={gracePeriodMinutes}
+        onChange={(e) => setGracePeriodMinutes(e.target.value)}
+      />
+
+      <div className="mt-2 flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" isLoading={updateSettings.isPending} loadingText="Saving…">
+          Save
+        </Button>
+      </div>
+    </form>
   );
 }

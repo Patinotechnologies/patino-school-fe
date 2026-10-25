@@ -27,9 +27,15 @@ export interface SubjectTeacherSummary {
   fullName: string;
 }
 
+export interface ClassSummaryForSubject {
+  id: string;
+  name: string;
+}
+
 export interface ClassSubject {
   id: string;
   classId: string;
+  class: ClassSummaryForSubject;
   subject: Subject;
   subjectTeacher: SubjectTeacherSummary | null;
 }

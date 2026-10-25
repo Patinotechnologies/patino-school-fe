@@ -25,6 +25,10 @@ export const staffApi = {
     return client.get<PaginatedStaff>(`/staff${toQueryString(params)}`);
   },
 
+  get(id: string) {
+    return client.get<Staff>(`/staff/${id}`);
+  },
+
   create(payload: CreateStaffPayload) {
     return client.post<Staff>("/staff", payload);
   },
@@ -37,6 +41,16 @@ export function useStaffQuery(params: ListStaffParams = {}) {
     queryKey: [...queryKeys.staff, params],
     queryFn: () => staffApi.list(params),
     enabled: Boolean(token),
+  });
+}
+
+export function useStaffMemberQuery(id: string) {
+  const token = useAuthStore((state) => state.token);
+
+  return useQuery({
+    queryKey: [...queryKeys.staff, "detail", id],
+    queryFn: () => staffApi.get(id),
+    enabled: Boolean(token && id),
   });
 }
 

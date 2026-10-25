@@ -14,6 +14,10 @@ export const classSubjectsApi = {
     return client.get<ClassSubject[]>(`/class-subjects?classId=${classId}`);
   },
 
+  listByTeacher(subjectTeacherId: string) {
+    return client.get<ClassSubject[]>(`/class-subjects?subjectTeacherId=${subjectTeacherId}`);
+  },
+
   assign(payload: AssignClassSubjectPayload) {
     return client.post<ClassSubject>("/class-subjects", payload);
   },
@@ -29,13 +33,23 @@ export function useClassSubjectsQuery(classId: string) {
   });
 }
 
+export function useClassSubjectsByTeacherQuery(subjectTeacherId: string) {
+  const token = useAuthStore((state) => state.token);
+
+  return useQuery({
+    queryKey: [...queryKeys.classSubjects, "by-teacher", subjectTeacherId],
+    queryFn: () => classSubjectsApi.listByTeacher(subjectTeacherId),
+    enabled: Boolean(token && subjectTeacherId),
+  });
+}
+
 export function useAssignClassSubjectMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (payload: AssignClassSubjectPayload) => classSubjectsApi.assign(payload),
     onSuccess: (classSubject) => {
-      queryClient.invalidateQueries({ queryKey: [...queryKeys.classSubjects, classSubject.classId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.classSubjects });
       toast.success(`${classSubject.subject.name} assigned`);
     },
     onError: (err) => toastError(err, "Could not assign the subject"),
