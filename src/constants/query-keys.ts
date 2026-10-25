@@ -9,4 +9,6 @@ export const queryKeys = {
   classSubjects: ["class-subjects"] as const,
   pupils: ["pupils"] as const,
   attendance: ["attendance"] as const,
+  staffAttendance: ["staff-attendance"] as const,
+  staffAttendanceSettings: ["staff-attendance-settings"] as const,
 };

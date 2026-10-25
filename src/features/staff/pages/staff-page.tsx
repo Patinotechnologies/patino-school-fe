@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/layout/page-header";
@@ -73,6 +74,7 @@ const columns: ColumnDef<Staff, unknown>[] = [
 ];
 
 export default function StaffPage() {
+  const router = useRouter();
   const [roleFilter, setRoleFilter] = useState<StaffRole | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
 
@@ -135,6 +137,7 @@ export default function StaffPage() {
         searchPlaceholder="Search staff…"
         emptyTitle="No staff yet"
         emptyDescription="Staff you add will show up here."
+        onRowClick={(staff) => router.push(`/staff/${staff.id}`)}
         toolbarFilters={
           <>
             <div className="w-40">
