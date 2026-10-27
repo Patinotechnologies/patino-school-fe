@@ -3,6 +3,7 @@ export const queryKeys = {
   schools: ["schools"] as const,
   userProfile: ["user-profile"] as const,
   organizationProfile: ["organization-profile"] as const,
+  organizationStats: ["organization-stats"] as const,
   staff: ["staff"] as const,
   classes: ["classes"] as const,
   subjects: ["subjects"] as const,

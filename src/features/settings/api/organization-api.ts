@@ -5,7 +5,7 @@ import { toastError } from "@/lib/utils/toast-error";
 import { apiConfig } from "@/config/api";
 import { queryKeys } from "@/constants/query-keys";
 import { useAuthStore } from "@/stores/auth-store";
-import type { OrganizationProfile, UpdateOrganizationPayload } from "@/types/organization";
+import type { OrganizationProfile, OrganizationStats, UpdateOrganizationPayload } from "@/types/organization";
 
 const client = createApiClient(apiConfig.baseUrl);
 
@@ -17,6 +17,10 @@ export const organizationApi = {
   updateProfile(payload: UpdateOrganizationPayload) {
     return client.patch<OrganizationProfile>("/organizations/me", payload);
   },
+
+  getStats() {
+    return client.get<OrganizationStats>("/organizations/stats");
+  },
 };
 
 export function useOrganizationProfileQuery() {
@@ -25,6 +29,16 @@ export function useOrganizationProfileQuery() {
   return useQuery({
     queryKey: queryKeys.organizationProfile,
     queryFn: organizationApi.getProfile,
+    enabled: Boolean(token),
+  });
+}
+
+export function useOrganizationStatsQuery() {
+  const token = useAuthStore((state) => state.token);
+
+  return useQuery({
+    queryKey: queryKeys.organizationStats,
+    queryFn: organizationApi.getStats,
     enabled: Boolean(token),
   });
 }

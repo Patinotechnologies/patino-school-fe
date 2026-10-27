@@ -12,12 +12,15 @@ import { Modal } from "@/components/ui/modal";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable, DataTableColumnHeader } from "@/components/table";
+import { useSchoolStore } from "@/stores/school-store";
+import { useClassesQuery } from "@/features/classes/api/classes-api";
+import { useAttendanceLogQuery } from "@/features/attendance/api/attendance-api";
 import {
   useStaffAttendanceQuery,
   useStaffAttendanceSettingsQuery,
   useUpdateStaffAttendanceSettingsMutation,
 } from "@/features/staff/api/staff-attendance-api";
-import type { AttendanceStatus } from "@/types/attendance";
+import type { AttendanceLogEntry, AttendanceStatus } from "@/types/attendance";
 import type { StaffAttendanceEntry, StaffAttendanceSettings } from "@/types/staff-attendance";
 import type { StaffRole } from "@/types/staff";
 
@@ -40,48 +43,15 @@ const STATUS_FILTER_OPTIONS = [
   { value: "late", label: "Late" },
 ];
 
-interface StudentAttendanceLogEntry {
-  id: string;
-  studentName: string;
-  className: string;
-  context: string;
-  date: string;
-  status: AttendanceStatus;
+function entryContext(entry: AttendanceLogEntry): string {
+  return entry.subjectName ?? entry.activity ?? "Whole class";
 }
 
-// Mock data — there is no cross-class attendance-log endpoint yet, so this screen is UI-only for now.
-const MOCK_STUDENT_LOG: StudentAttendanceLogEntry[] = [
-  { id: "1", studentName: "Loveth John", className: "Primary 1", context: "Whole class", date: "2026-10-24", status: "present" },
-  { id: "2", studentName: "Tunde Bakare", className: "Primary 1", context: "Mathematics", date: "2026-10-24", status: "absent" },
-  { id: "3", studentName: "Amina Yusuf", className: "Primary 2", context: "Whole class", date: "2026-10-23", status: "late" },
-  { id: "4", studentName: "Chidi Okafor", className: "Primary 2", context: "English", date: "2026-10-23", status: "present" },
-  { id: "5", studentName: "Ngozi Eze", className: "Primary 3", context: "Sports Day", date: "2026-10-22", status: "present" },
-  { id: "6", studentName: "Emeka Nwosu", className: "Primary 1", context: "Mathematics", date: "2026-10-22", status: "present" },
-  { id: "7", studentName: "Blessing Adeyemi", className: "Primary 3", context: "Whole class", date: "2026-10-21", status: "absent" },
-  { id: "8", studentName: "Ifeoma Chukwu", className: "Primary 2", context: "English", date: "2026-10-21", status: "late" },
-];
-
-const CLASS_FILTER_OPTIONS = [
-  { value: "all", label: "All classes" },
-  ...Array.from(new Set(MOCK_STUDENT_LOG.map((entry) => entry.className))).map((className) => ({
-    value: className,
-    label: className,
-  })),
-];
-
-const CONTEXT_FILTER_OPTIONS = [
-  { value: "all", label: "All subjects / activities" },
-  ...Array.from(new Set(MOCK_STUDENT_LOG.map((entry) => entry.context))).map((context) => ({
-    value: context,
-    label: context,
-  })),
-];
-
-const studentColumns: ColumnDef<StudentAttendanceLogEntry, unknown>[] = [
+const studentColumns: ColumnDef<AttendanceLogEntry, unknown>[] = [
   {
-    accessorKey: "studentName",
+    accessorKey: "pupilName",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Student" />,
-    cell: ({ row }) => <span className="font-medium text-zinc-950">{row.original.studentName}</span>,
+    cell: ({ row }) => <span className="font-medium text-zinc-950">{row.original.pupilName}</span>,
     meta: { label: "Student" },
   },
   {
@@ -90,7 +60,8 @@ const studentColumns: ColumnDef<StudentAttendanceLogEntry, unknown>[] = [
     meta: { label: "Class" },
   },
   {
-    accessorKey: "context",
+    id: "context",
+    accessorFn: entryContext,
     header: ({ column }) => <DataTableColumnHeader column={column} title="Subject / Activity" />,
     meta: { label: "Subject / Activity" },
   },
@@ -101,7 +72,7 @@ const studentColumns: ColumnDef<StudentAttendanceLogEntry, unknown>[] = [
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
     enableSorting: false,
     cell: ({ row }) => <Badge variant={STATUS_BADGE_VARIANT[row.original.status]}>{STATUS_LABEL[row.original.status]}</Badge>,
   },
@@ -181,35 +152,51 @@ export default function AttendanceLogPage() {
 }
 
 function StudentLogTable() {
+  const selectedSchoolId = useSchoolStore((state) => state.selectedSchoolId);
+  const classesQuery = useClassesQuery(selectedSchoolId);
+
   const [classFilter, setClassFilter] = useState("all");
   const [contextFilter, setContextFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  const logQuery = useAttendanceLogQuery(
+    selectedSchoolId
+      ? { schoolId: selectedSchoolId, classId: classFilter === "all" ? undefined : classFilter, pageSize: 200 }
+      : null,
+  );
+  const classOptions = [
+    { value: "all", label: "All classes" },
+    ...(classesQuery.data ?? []).map((cls) => ({ value: cls.id, label: cls.name })),
+  ];
+
+  const contextOptions = useMemo(() => {
+    const contexts = Array.from(new Set((logQuery.data?.data ?? []).map(entryContext)));
+    return [{ value: "all", label: "All subjects / activities" }, ...contexts.map((context) => ({ value: context, label: context }))];
+  }, [logQuery.data]);
+
   const data = useMemo(
     () =>
-      MOCK_STUDENT_LOG.filter(
-        (entry) =>
-          (classFilter === "all" || entry.className === classFilter) &&
-          (contextFilter === "all" || entry.context === contextFilter) &&
-          (statusFilter === "all" || entry.status === statusFilter),
+      (logQuery.data?.data ?? []).filter(
+        (entry) => (contextFilter === "all" || entryContext(entry) === contextFilter) && (statusFilter === "all" || entry.status === statusFilter),
       ),
-    [classFilter, contextFilter, statusFilter],
+    [logQuery.data, contextFilter, statusFilter],
   );
 
   return (
     <DataTable
       columns={studentColumns}
       data={data}
+      isLoading={logQuery.isPending}
       searchPlaceholder="Search by student name…"
       emptyTitle="No attendance records"
       emptyDescription="No records match these filters."
       toolbarFilters={
         <>
           <div className="w-40">
-            <Dropdown options={CLASS_FILTER_OPTIONS} value={classFilter} onChange={setClassFilter} />
+            <Dropdown options={classOptions} value={classFilter} onChange={setClassFilter} isLoading={classesQuery.isPending} />
           </div>
           <div className="w-52">
-            <Dropdown options={CONTEXT_FILTER_OPTIONS} value={contextFilter} onChange={setContextFilter} />
+            <Dropdown options={contextOptions} value={contextFilter} onChange={setContextFilter} />
           </div>
           <div className="w-40">
             <Dropdown options={STATUS_FILTER_OPTIONS} value={statusFilter} onChange={setStatusFilter} />
