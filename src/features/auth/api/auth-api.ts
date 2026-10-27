@@ -21,6 +21,10 @@ export const authApi = {
   me() {
     return client.get<MeResponse>("/auth/me");
   },
+
+  logout() {
+    return client.post<void>("/auth/logout", {});
+  },
 };
 
 function useAuthSuccess() {
@@ -57,6 +61,21 @@ export function useLoginMutation() {
       toast.success(`Welcome back, ${res.user.fullName}!`);
     },
     onError: (err) => toastError(err, "Could not log you in"),
+  });
+}
+
+export function useLogoutMutation() {
+  const clearToken = useAuthStore((state) => state.clearToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => authApi.logout(),
+    // Clear local session regardless of whether the server call succeeds — a network
+    // failure here shouldn't be able to trap the user in a logged-in state.
+    onSettled: () => {
+      clearToken();
+      queryClient.clear();
+    },
   });
 }
 

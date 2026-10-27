@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { LogOut } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
-import { useMeQuery } from "@/features/auth/api/auth-api";
+import { useLogoutMutation, useMeQuery } from "@/features/auth/api/auth-api";
 import { ApiError } from "@/lib/api/api-client";
 import { Sidebar } from "@/components/layout/sidebar";
 
@@ -17,6 +17,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const clearToken = useAuthStore((state) => state.clearToken);
   const meQuery = useMeQuery();
+  const logoutMutation = useLogoutMutation();
 
   const isUnauthenticated = hasHydrated && !token;
   const isSessionInvalid = meQuery.isError && meQuery.error instanceof ApiError && meQuery.error.status === 401;
@@ -49,10 +50,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const { user, organization } = meQuery.data;
 
   function handleLogout() {
-    clearToken();
-    queryClient.clear();
-    toast.success("Logged out");
-    router.push("/login");
+    logoutMutation.mutate(undefined, {
+      onSettled: () => {
+        toast.success("Logged out");
+        router.push("/login");
+      },
+    });
   }
 
   return (

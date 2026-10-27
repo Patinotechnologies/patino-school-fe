@@ -11,3 +11,10 @@ export interface UpdateOrganizationPayload {
   phone?: string | null;
   email?: string | null;
 }
+
+/** Org-wide counts across every school — for the sidebar summary card. */
+export interface OrganizationStats {
+  totalStaff: number;
+  totalPupils: number;
+  totalClasses: number;
+}
